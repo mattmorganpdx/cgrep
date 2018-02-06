@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"encoding/base64"
+	"regexp"
 )
 
 // ConsulKV a struct to hold consul data
@@ -16,6 +17,20 @@ type ConsulKV struct {
 	Value       string `json:"Value"`
 	CreateIndex int    `json:"CreateIndex"`
 	ModifyIndex int    `json:"ModifyIndex"`
+}
+
+type simpleKV map[string]string
+
+func (s simpleKV) match(r string) simpleKV {
+	var searchValue = regexp.MustCompile(r)
+	mkv := make(simpleKV)
+	
+	for k, v := range s {
+		if searchValue.MatchString(k) || searchValue.MatchString(v) {
+			mkv[k] = v
+		}
+	}
+	return mkv
 }
 
 func (c ConsulKV) toString() string {
@@ -44,15 +59,28 @@ func getKVs() []ConsulKV {
     return c
 }
 
-func main() {
-	kvs := getKVs()
-	for _, kv := range kvs {
+func decode(c []ConsulKV) simpleKV {
+	skv := make(simpleKV)
+	for _, kv := range c {
 		d, err := base64.StdEncoding.DecodeString(kv.Value)
 		if err == nil {
-			fmt.Printf("Key: %s Value: %q\n", kv.Key, d)
+			skv[kv.Key] = fmt.Sprintf("%q", d)
+		} else {
+			skv[kv.Key] = kv.Value
 		}
 	}
-	
-	
+	return skv
+} 
 
+func main() {
+		
+	if len(os.Args) >= 2 {		
+		for k, v := range decode(getKVs()).match(os.Args[1]) {
+			fmt.Println("Key:", k)
+			fmt.Println("Value:", v)
+		}
+	} else {
+		fmt.Println("please enter a search string")
+		os.Exit(1)
+	}
 }
